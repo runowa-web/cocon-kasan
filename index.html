@@ -214,6 +214,29 @@ const KAIGO_KASAN = [
     ],
     results:{allYes:'看護・介護職員連携強化加算 250単位/月', fail:'算定不可'}
   },
+  {
+    id:'yakan_kaigo', name:'夜間・早朝加算／深夜加算', order:11,
+    flow:[
+      {q:'訪問時間帯は午前6時〜8時 or 午後6時〜10時ですか？', note:'Yes→夜間・早朝加算（所定単位数×25%）、No→深夜時間帯の判定へ', branching:true},
+    ],
+    results:{allYes:'夜間・早朝加算（所定単位数の25%加算）', lastNo:'午後10時〜午前6時 → 深夜加算（所定単位数の50%加算）', fail:'時間内訪問のため加算なし'}
+  },
+  {
+    id:'enkaku_shibou_kaigo', name:'遠隔死亡診断補助加算', order:12,
+    flow:[
+      {q:'情報通信機器を用いて医師の死亡診断を補助しましたか？', note:'看護師がICTを通じて医師の死亡診断の補助を行った場合'},
+      {q:'医師が直接対面での死亡診断が困難な状況でしたか？'},
+    ],
+    results:{allYes:'遠隔死亡診断補助加算 150単位/回', fail:'算定不可'}
+  },
+  {
+    id:'teijun_renkei', name:'定期巡回・随時対応型訪問介護看護事業所連携加算', order:13,
+    flow:[
+      {q:'定期巡回・随時対応型訪問介護看護事業所と連携していますか？', note:'訪問看護STが定期巡回事業所に訪問看護を提供する場合'},
+      {q:'利用者に計画的な訪問看護を行っていますか？'},
+    ],
+    results:{allYes:'定期巡回・随時対応型訪問介護看護事業所連携加算 2,954単位/月', fail:'算定不可'}
+  },
 ];
 
 // 医療保険：利用者別加算（重要度・頻度順）
@@ -332,6 +355,38 @@ const IRYO_KASAN = [
       {q:'利用者から情報提供について同意を得ましたか？'},
     ],
     results:{allYes:'訪問看護情報提供療養費 1,500円/月', fail:'算定不可'}
+  },
+  {
+    id:'i_nyuyoji', name:'乳幼児加算', order:15,
+    flow:[
+      {q:'利用者は6歳未満の乳幼児ですか？'},
+      {q:'利用者は別表8該当（特別管理加算対象）の重症児ですか？', note:'Yes→重症 1,800円、No→その他 1,300円\n※2024年改定で区分変更', branching:true, showTable8:true},
+    ],
+    results:{allYes:'乳幼児加算（重症）1,800円/回', lastNo:'乳幼児加算（その他）1,300円/回', fail:'算定不可（6歳以上）'}
+  },
+  {
+    id:'i_kango_kaigo', name:'看護・介護職員連携強化加算', order:16,
+    flow:[
+      {q:'訪問介護事業所の介護職員に対し、喀痰吸引等に係る指導を行っていますか？'},
+      {q:'介護職員が実施する喀痰吸引等の業務内容について助言・支援を行いましたか？'},
+    ],
+    results:{allYes:'看護・介護職員連携強化加算 2,500円/月', fail:'算定不可'}
+  },
+  {
+    id:'i_enkaku_shibou', name:'遠隔死亡診断補助加算', order:17,
+    flow:[
+      {q:'情報通信機器を用いて医師の死亡診断を補助しましたか？'},
+      {q:'医師が直接対面での死亡診断が困難な状況でしたか？'},
+    ],
+    results:{allYes:'遠隔死亡診断補助加算 1,500円/回', fail:'算定不可'}
+  },
+  {
+    id:'i_tokubetsu_shido', name:'特別管理指導加算', document:true, order:18,
+    flow:[
+      {q:'退院時共同指導加算の算定対象の利用者ですか？', note:'退院時共同指導に上乗せで算定'},
+      {q:'特別な管理が必要な利用者（別表8該当）に対し、退院時に特別な指導を行いましたか？', showTable8:true},
+    ],
+    results:{allYes:'特別管理指導加算 2,000円/回（退院時共同指導加算に上乗せ）', fail:'算定不可'}
   },
 ];
 
@@ -527,6 +582,11 @@ function Summary({kasanList, flowAnswers, officeSettings}) {
   const warnings = [];
   if(!officeSettings.bcp) warnings.push('BCP未策定 → 1%減算');
   if(!officeSettings.gyakutai) warnings.push('虐待防止措置未実施 → 1%減算');
+
+  // 併算定不可チェック（介護保険：初回加算 ＋ 退院時共同指導加算）
+  const shokaiOk = results.find(r=>r.id==='shokai' && (r.status==='ok'||r.status==='partial'));
+  const taiinOk = results.find(r=>r.id==='taiin' && (r.status==='ok'||r.status==='partial'));
+  if(shokaiOk && taiinOk) warnings.push('初回加算と退院時共同指導加算は同月に併算定不可です。どちらかを選択してください。');
 
   return (
     <div className="card">
