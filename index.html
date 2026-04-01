@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ここん 加算チェッカー</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh}
+.app{max-width:800px;margin:0 auto;padding:16px}
+.header{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;padding:20px;border-radius:16px;margin-bottom:16px;text-align:center}
+.header h1{font-size:20px;font-weight:800;margin-bottom:4px}
+.header p{font-size:12px;color:#94a3b8}
+
+/* Tab */
+.tab-bar{display:flex;gap:4px;background:#fff;padding:4px;border-radius:12px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.tab-btn{flex:1;padding:10px 8px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;background:transparent;color:#6b7280}
+.tab-btn.active{background:#7c3aed;color:#fff;box-shadow:0 2px 8px rgba(124,58,237,0.3)}
+
+/* Card */
+.card{background:#fff;border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.card h2{font-size:16px;font-weight:800;color:#1a1a2e;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card h3{font-size:14px;font-weight:700;color:#374151;margin:16px 0 8px;padding-top:12px;border-top:1px solid #f3f4f6}
+
+/* Flow */
+.flow-section{margin-bottom:8px}
+.flow-q{background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:14px;margin-bottom:8px}
+.flow-q .q-label{font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px}
+.flow-q .q-text{font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;line-height:1.5}
+.flow-q .q-note{font-size:11px;color:#6b7280;margin-bottom:8px;line-height:1.4}
+.flow-btns{display:flex;gap:8px}
+.flow-btn{flex:1;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.15s;background:#fff;text-align:center}
+.flow-btn:hover{border-color:#7c3aed;color:#7c3aed}
+.flow-btn.selected-yes{background:#dcfce7;border-color:#16a34a;color:#16a34a}
+.flow-btn.selected-no{background:#fee2e2;border-color:#dc2626;color:#dc2626}
+.flow-btn.selected-na{background:#f3f4f6;border-color:#9ca3af;color:#9ca3af}
+
+/* Result */
+.result-box{border-radius:10px;padding:14px;margin-top:8px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.result-box.ok{background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0}
+.result-box.ng{background:#fee2e2;color:#dc2626;border:1px solid #fecaca}
+.result-box.warn{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.result-box.info{background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe}
+
+/* Taisaku badge */
+.taisaku{font-size:11px;background:#fef3c7;color:#92400e;padding:4px 10px;border-radius:6px;margin-top:6px;display:inline-block;line-height:1.4}
+
+/* Summary */
+.summary-table{width:100%;border-collapse:collapse;margin-top:12px}
+.summary-table th,.summary-table td{padding:10px 12px;text-align:left;border-bottom:1px solid #f3f4f6;font-size:13px}
+.summary-table th{font-weight:700;color:#6b7280;font-size:11px;text-transform:uppercase;background:#f8fafc}
+.summary-table .ok-cell{color:#16a34a;font-weight:700}
+.summary-table .ng-cell{color:#dc2626;font-weight:700}
+.summary-table .na-cell{color:#9ca3af}
+.amount{font-size:15px;font-weight:800;color:#7c3aed}
+
+/* Office section */
+.office-badge{display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1d4ed8;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px}
+
+/* Action buttons */
+.action-bar{display:flex;gap:8px;margin-top:16px}
+.action-btn{flex:1;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.15s}
+.action-btn.primary{background:#7c3aed;color:#fff}
+.action-btn.primary:hover{background:#6d28d9}
+.action-btn.secondary{background:#f3f4f6;color:#374151}
+.action-btn.secondary:hover{background:#e5e7eb}
+
+/* Print */
+@media print{.tab-bar,.action-bar,.flow-btns{display:none}.flow-btn.selected-yes,.flow-btn.selected-no{display:inline-block}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel">
+
+// ===== 加算データ定義 =====
+
+const KAIGO_OFFICE_KASAN = [
+  {id:'bcp', name:'業務継続計画（BCP）策定', type:'体制', question:'BCPを策定し、研修・訓練を実施していますか？', note:'未策定の場合1%減算。2025年4月から完全義務化。', points:'減算回避', required:true},
+  {id:'gyakutai', name:'高齢者虐待防止措置', type:'体制', question:'虐待防止委員会の開催、指針整備、研修を実施していますか？', note:'未実施の場合1%減算。', points:'減算回避', required:true},
+  {id:'taisei_i', name:'看護体制強化加算（Ⅰ）', type:'体制', question:'看護職員60%以上・緊急時加算50%以上・特別管理20%以上・ターミナル年5名以上を全て満たしていますか？', note:'(Ⅱ)はターミナル要件を除いた要件。', points:'550単位/月'},
+  {id:'taisei_ii', name:'看護体制強化加算（Ⅱ）', type:'体制', question:'看護職員60%以上・緊急時加算50%以上・特別管理20%以上を満たしていますか？（ターミナル年5名未満でもOK）', points:'200単位/月'},
+  {id:'service_i', name:'サービス提供体制強化加算（Ⅰ）', type:'体制', question:'勤続7年以上の看護師等が30%以上ですか？（＋研修計画・月1回会議・年1回健診）', points:'6単位/回'},
+  {id:'service_ii', name:'サービス提供体制強化加算（Ⅱ）', type:'体制', question:'勤続3年以上の看護師等が30%以上ですか？', points:'3単位/回'},
+];
+
+const KAIGO_KASAN = [
+  {
+    id:'kinkyu', name:'緊急時訪問看護加算', consent:true, document:true,
+    flow:[
+      {q:'24時間連絡可能な体制を整備していますか？', note:'電話等により看護に関する意見を求められた場合に常時対応できる体制'},
+      {q:'緊急時の訪問看護を行う体制がありますか？'},
+      {q:'利用者に書面で説明し、同意を得ていますか？', note:'ステーション名・所在地・電話番号・緊急時連絡方法を記載した文書を交付'},
+      {q:'看護業務の負担軽減の取組を実施していますか？', note:'(Ⅰ)の要件。勤務間隔確保、夜間対応連続2回まで等の要件を充足。No→(Ⅱ)で算定可', branching:true},
+    ],
+    results:{
+      allYes:'緊急時訪問看護加算（Ⅰ）600単位/月 を算定可能',
+      lastNo:'緊急時訪問看護加算（Ⅱ）574単位/月 を算定可能',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'tokubetsu', name:'特別管理加算', consent:true,
+    flow:[
+      {q:'利用者は特別な医療処置を受けていますか？', note:'在宅悪性腫瘍指導管理、気管切開指導管理、気管カニューレ、留置カテーテル、在宅酸素、自己導尿、人工肛門/膀胱、真皮を超える褥瘡、週3日以上の点滴注射 等'},
+      {q:'以下のいずれかに該当しますか？\n・在宅悪性腫瘍患者指導管理\n・在宅気管切開患者指導管理\n・気管カニューレ使用\n・留置カテーテル使用', note:'Yes→(Ⅰ)500単位、No→(Ⅱ)250単位', branching:true},
+    ],
+    results:{
+      allYes:'特別管理加算（Ⅰ）500単位/月 を算定可能',
+      lastNo:'特別管理加算（Ⅱ）250単位/月 を算定可能',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'terminal', name:'ターミナルケア加算', consent:true,
+    flow:[
+      {q:'利用者が死亡した月ですか？'},
+      {q:'主治医との連携の下、ターミナルケアに係る計画を立案していますか？'},
+      {q:'利用者又は家族からターミナルケアの同意を書面で得ていますか？'},
+      {q:'死亡日および死亡日前14日以内に2日以上のターミナルケアを実施しましたか？'},
+    ],
+    results:{allYes:'ターミナルケア加算 2,500単位/死亡月 を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'shokai_i', name:'初回加算', consent:false,
+    flow:[
+      {q:'新規に訪問看護を開始する利用者、または過去2ヶ月以上利用がなかった利用者ですか？'},
+      {q:'退院・退所した利用者ですか？', branching:true},
+      {q:'退院・退所した当日に看護師等が初回の訪問看護を実施しましたか？', note:'Yes→(Ⅰ)350単位、No→(Ⅱ)300単位', branching:true},
+    ],
+    results:{
+      allYes:'初回加算（Ⅰ）350単位 を算定可能',
+      lastNo:'初回加算（Ⅱ）300単位 を算定可能（退院翌日以降の訪問）',
+      secondNo:'初回加算（Ⅱ）300単位 を算定可能（退院・退所以外の新規）',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'taiin', name:'退院時共同指導加算', consent:false, document:true,
+    flow:[
+      {q:'病院等の医師・スタッフと共同で在宅療養上の指導を行いましたか？'},
+      {q:'指導内容を利用者に文書で提供しましたか？'},
+    ],
+    results:{allYes:'退院時共同指導加算 600単位/回 を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'fukusu', name:'複数名訪問看護加算', consent:true,
+    flow:[
+      {q:'利用者への訪問看護を1人で行うことが困難な状況ですか？', note:'暴力行為、体重が重い、著しい不穏等'},
+      {q:'看護師等2名で訪問しましたか？', note:'Yes→(Ⅰ)、No→看護補助者との訪問で(Ⅱ)', branching:true},
+    ],
+    results:{
+      allYes:'複数名訪問加算（Ⅰ）254〜402単位/回 を算定可能',
+      lastNo:'複数名訪問加算（Ⅱ）201〜317単位/回（看護師＋看護補助者）を算定可能',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'chojikan', name:'長時間訪問看護加算', consent:false,
+    flow:[
+      {q:'利用者は特別管理加算の対象者ですか？'},
+      {q:'1回の訪問看護が1時間30分を超えましたか？'},
+    ],
+    results:{allYes:'長時間訪問看護加算 300単位/回 を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'senmon', name:'専門管理加算', consent:false,
+    flow:[
+      {q:'緩和ケア・褥瘡ケア・人工肛門/膀胱ケアの専門研修修了看護師、または特定行為研修修了看護師が配置されていますか？'},
+      {q:'当該看護師が訪問看護の実施に関する計画的な管理を行いましたか？'},
+    ],
+    results:{allYes:'専門管理加算 250単位/月 を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'koku', name:'口腔連携強化加算', consent:true,
+    flow:[
+      {q:'利用者の口腔の健康状態を評価しましたか？'},
+      {q:'利用者から歯科医療機関への情報提供について同意を得ましたか？'},
+      {q:'歯科医療機関およびケアマネジャーに評価結果を情報提供しましたか？'},
+    ],
+    results:{allYes:'口腔連携強化加算 50単位/回（月1回）を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'kango_kaigo', name:'看護・介護職員連携強化加算', consent:false,
+    flow:[
+      {q:'訪問介護事業所と連携して喀痰吸引等に係る支援を行っていますか？', note:'計画書作成助言・緊急時助言・同行確認・会議出席'},
+    ],
+    results:{allYes:'看護・介護職員連携強化加算 250単位/月 を算定可能', fail:'算定不可'}
+  },
+];
+
+const IRYO_OFFICE_KASAN = [
+  {id:'kinou1', name:'機能強化型管理療養費1', type:'体制', question:'常勤看護師7名以上、24時間体制、ターミナル年20件以上、専門研修修了看護師配置を満たしていますか？', points:'月初日12,830円'},
+  {id:'kinou2', name:'機能強化型管理療養費2', type:'体制', question:'常勤看護師5名以上、ターミナル年15件以上等を満たしていますか？', points:'月初日9,800円'},
+  {id:'kinou3', name:'機能強化型管理療養費3', type:'体制', question:'常勤看護師4名以上、ターミナル実績等を満たしていますか？', points:'月初日8,470円'},
+  {id:'baseup', name:'訪問看護ベースアップ評価料（Ⅰ）', type:'体制', question:'職員の賃金改善計画を策定し届出を行っていますか？', points:'780円/月'},
+  {id:'dx', name:'訪問看護医療DX情報活用加算', type:'体制', question:'オンライン資格確認による診療情報取得の体制がありますか？', points:'50円/月'},
+];
+
+const IRYO_KASAN = [
+  {
+    id:'i_24h', name:'24時間対応体制加算', consent:true, document:true,
+    flow:[
+      {q:'24時間連絡可能な体制を整備していますか？'},
+      {q:'緊急時の訪問看護を行う体制がありますか？'},
+      {q:'利用者にステーション名・所在地・電話番号・緊急連絡方法を記載した文書を交付し、同意を得ましたか？'},
+      {q:'看護業務の負担軽減の取組を実施していますか？', note:'Yes→イ（6,800円）、No→ロ（6,520円）', branching:true},
+    ],
+    results:{
+      allYes:'24時間対応体制加算（イ）6,800円/月 を算定可能',
+      lastNo:'24時間対応体制加算（ロ）6,520円/月 を算定可能',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'i_tokubetsu', name:'特別管理加算', consent:true,
+    flow:[
+      {q:'利用者は特別な医療処置を受けていますか？', note:'在宅悪性腫瘍指導管理、気管切開、気管カニューレ、留置カテーテル、在宅酸素、自己導尿、人工肛門/膀胱、褥瘡、点滴注射 等'},
+      {q:'以下のいずれかに該当しますか？\n・在宅悪性腫瘍患者指導管理\n・在宅気管切開患者指導管理\n・気管カニューレ使用\n・留置カテーテル使用', branching:true},
+    ],
+    results:{
+      allYes:'特別管理加算（重症）5,000円/月 を算定可能',
+      lastNo:'特別管理加算（その他）2,500円/月 を算定可能',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'i_kinkyu', name:'緊急訪問看護加算', consent:false,
+    flow:[
+      {q:'利用者・家族からの緊急の求めに応じて訪問しましたか？'},
+      {q:'主治医の指示により緊急訪問看護を行いましたか？'},
+      {q:'当月の緊急訪問は14日目以内ですか？', note:'Yes→2,650円、No（15日目以降）→2,000円', branching:true},
+    ],
+    results:{
+      allYes:'緊急訪問看護加算 2,650円/日（14日目まで）を算定可能',
+      lastNo:'緊急訪問看護加算 2,000円/日（15日目以降）を算定可能',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'i_terminal', name:'ターミナルケア療養費', consent:true,
+    flow:[
+      {q:'利用者が死亡した月ですか？'},
+      {q:'主治医との連携の下、ターミナルケアに係る計画を立案していますか？'},
+      {q:'利用者又は家族からターミナルケアの同意を書面で得ていますか？'},
+      {q:'死亡日および死亡日前14日以内に2日以上のターミナルケアを実施しましたか？'},
+      {q:'在宅で死亡しましたか？', note:'Yes→療養費1（25,000円）、No→療養費2（10,000円/特養等）', branching:true},
+    ],
+    results:{
+      allYes:'ターミナルケア療養費1 25,000円/死亡月 を算定可能',
+      lastNo:'ターミナルケア療養費2 10,000円/死亡月 を算定可能',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'i_nanbyou', name:'難病等複数回訪問加算', consent:false,
+    flow:[
+      {q:'利用者は別表7・別表8に該当する状態ですか？', note:'厚生労働大臣が定める疾病等・状態等'},
+      {q:'1日に2回以上の訪問看護を実施しましたか？'},
+      {q:'1日に3回以上の訪問看護を実施しましたか？', branching:true},
+    ],
+    results:{
+      allYes:'難病等複数回訪問加算 8,000円/日（3回以上）を算定可能',
+      lastNo:'難病等複数回訪問加算 4,500円/日（2回）を算定可能',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'i_chojikan', name:'長時間訪問看護加算', consent:false,
+    flow:[
+      {q:'利用者は特別管理加算の対象者ですか？'},
+      {q:'1回の訪問看護が1時間30分を超えましたか？'},
+    ],
+    results:{allYes:'長時間訪問看護加算 5,200円/日 を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'i_fukusu', name:'複数名訪問看護加算', consent:true,
+    flow:[
+      {q:'1人での看護が困難な利用者ですか？'},
+      {q:'看護師等2名で訪問しましたか？', branching:true},
+    ],
+    results:{
+      allYes:'複数名訪問看護加算（看護師等）4,500円/日 を算定可能',
+      lastNo:'複数名訪問看護加算（看護補助者）3,000円/日 を算定可能',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'i_taiin', name:'退院時共同指導加算', consent:false, document:true,
+    flow:[
+      {q:'病院等のスタッフと共同で在宅療養上の指導を行いましたか？'},
+      {q:'指導内容を利用者に文書で提供しましたか？'},
+    ],
+    results:{allYes:'退院時共同指導加算 8,000円/回 を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'i_taiinshien', name:'退院支援指導加算', consent:false,
+    flow:[
+      {q:'退院日に在宅療養上の指導を実施しましたか？'},
+      {q:'指導時間の合計が90分を超えましたか？', branching:true},
+    ],
+    results:{
+      allYes:'退院支援指導加算（長時間）8,400円/回 を算定可能',
+      lastNo:'退院支援指導加算 6,000円/回 を算定可能',
+      fail:'算定不可'
+    }
+  },
+  {
+    id:'i_renkei', name:'在宅患者連携指導加算', consent:false,
+    flow:[
+      {q:'医療関係職種間で月2回以上文書等で情報共有を行いましたか？'},
+      {q:'共有内容を踏まえて療養上の指導を実施しましたか？'},
+    ],
+    results:{allYes:'在宅患者連携指導加算 3,000円/月 を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'i_conference', name:'在宅患者緊急時等カンファレンス加算', consent:false,
+    flow:[
+      {q:'急変等で主治医の求めにより関係職種とカンファレンスを実施しましたか？'},
+    ],
+    results:{allYes:'在宅患者緊急時等カンファレンス加算 2,000円/回（月2回）を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'i_senmon', name:'専門管理加算', consent:false,
+    flow:[
+      {q:'緩和ケア・褥瘡ケア等の専門研修修了看護師、または特定行為研修修了看護師が配置されていますか？'},
+      {q:'当該看護師が計画的な管理を行いましたか？'},
+    ],
+    results:{allYes:'専門管理加算 2,520円/月 を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'i_joho1', name:'訪問看護情報提供療養費1', consent:true,
+    flow:[
+      {q:'市町村等に利用者情報を提供しましたか？'},
+      {q:'利用者から情報提供について同意を得ましたか？'},
+    ],
+    results:{allYes:'訪問看護情報提供療養費1 1,500円/月 を算定可能', fail:'算定不可'}
+  },
+  {
+    id:'i_yakan', name:'夜間・早朝/深夜訪問看護加算', consent:false,
+    flow:[
+      {q:'午前6時〜8時 or 午後6時〜10時の訪問ですか？', note:'Yes→夜間・早朝加算、No→深夜加算の判定へ', branching:true},
+    ],
+    results:{
+      allYes:'夜間・早朝訪問看護加算 2,100円/回 を算定可能',
+      lastNo:'午後10時〜午前6時の訪問の場合、深夜訪問看護加算 4,200円/回 を算定可能',
+      fail:'時間内訪問のため加算なし'
+    }
+  },
+];
+
+// ===== コンポーネント =====
+
+function FlowChecker({kasan, answers, setAnswer}) {
+  const ans = answers[kasan.id] || {};
+
+  const getResult = () => {
+    const steps = kasan.flow;
+    for(let i=0; i<steps.length; i++) {
+      if(ans[i] === undefined) return null; // まだ回答していない
+      if(ans[i] === 'no') {
+        if(steps[i].branching) {
+          if(i === steps.length - 1) return {type:'ok', text: kasan.results.lastNo || kasan.results.fail};
+          if(i === 1 && kasan.results.secondNo) return {type:'ok', text: kasan.results.secondNo};
+          return {type:'ok', text: kasan.results.lastNo || kasan.results.fail};
+        }
+        return {type:'ng', text: kasan.results.fail};
+      }
+    }
+    return {type:'ok', text: kasan.results.allYes};
+  };
+
+  const result = getResult();
+  const visibleSteps = [];
+  for(let i=0; i<kasan.flow.length; i++) {
+    visibleSteps.push(i);
+    if(ans[i] === undefined || (ans[i] === 'no' && !kasan.flow[i].branching)) break;
+    if(ans[i] === 'no' && kasan.flow[i].branching) { visibleSteps.push(i); break; }
+  }
+
+  return (
+    <div className="card">
+      <h2>
+        {kasan.consent && <span style={{fontSize:11,background:'#fee2e2',color:'#dc2626',padding:'2px 6px',borderRadius:4}}>同意書必要</span>}
+        {kasan.document && <span style={{fontSize:11,background:'#dbeafe',color:'#1d4ed8',padding:'2px 6px',borderRadius:4}}>書面交付</span>}
+        {kasan.name}
+      </h2>
+      {kasan.flow.map((step, i) => {
+        if(!visibleSteps.includes(i)) return null;
+        const answered = ans[i] !== undefined;
+        // Don't show step if previous was No and not branching
+        if(i > 0 && ans[i-1] === 'no' && !kasan.flow[i-1].branching) return null;
+        return (
+          <div key={i} className="flow-section">
+            <div className="flow-q">
+              <div className="q-label">Q{i+1}</div>
+              <div className="q-text" style={{whiteSpace:'pre-line'}}>{step.q}</div>
+              {step.note && <div className="q-note">{step.note}</div>}
+              <div className="flow-btns">
+                <button className={`flow-btn ${ans[i]==='yes'?'selected-yes':''}`}
+                  onClick={()=>setAnswer(kasan.id, i, 'yes')}>Yes</button>
+                <button className={`flow-btn ${ans[i]==='no'?'selected-no':''}`}
+                  onClick={()=>setAnswer(kasan.id, i, 'no')}>No</button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {result && (
+        <div className={`result-box ${result.type}`}>
+          {result.type==='ok' ? '✅' : '❌'} {result.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OfficeChecker({items, answers, setAnswer}) {
+  return (
+    <div className="card">
+      <h2><span className="office-badge">事業所固定</span> 体制加算・減算チェック</h2>
+      <p style={{fontSize:12,color:'#6b7280',marginBottom:12}}>事業所の体制に基づき一括で判定します。利用者ごとの判定は不要です。</p>
+      {items.map(item => (
+        <div key={item.id} className="flow-section">
+          <div className="flow-q">
+            <div className="q-label">{item.required ? '⚠️ 必須' : item.points}</div>
+            <div className="q-text">{item.name}</div>
+            <div className="q-note">{item.question}</div>
+            <div className="flow-btns">
+              <button className={`flow-btn ${answers[item.id]==='yes'?'selected-yes':''}`}
+                onClick={()=>setAnswer(item.id, 'yes')}>Yes</button>
+              <button className={`flow-btn ${answers[item.id]==='no'?'selected-no':''}`}
+                onClick={()=>setAnswer(item.id, 'no')}>No</button>
+              {!item.required && <button className={`flow-btn ${answers[item.id]==='na'?'selected-na':''}`}
+                onClick={()=>setAnswer(item.id, 'na')}>対象外</button>}
+            </div>
+            {answers[item.id]==='no' && item.required && (
+              <div className="taisaku">⚠️ 未対応の場合、減算の対象になります。早急に対応してください。</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Summary({kasanList, officeList, flowAnswers, officeAnswers, isKaigo}) {
+  const results = kasanList.map(k => {
+    const ans = flowAnswers[k.id] || {};
+    const steps = k.flow;
+    let status = 'pending';
+    for(let i=0; i<steps.length; i++) {
+      if(ans[i] === undefined) { status = 'pending'; break; }
+      if(ans[i] === 'no') {
+        if(steps[i].branching) { status = 'partial'; break; }
+        status = 'ng'; break;
+      }
+      if(i === steps.length - 1) status = 'ok';
+    }
+    return {name: k.name, status, consent: k.consent, id: k.id};
+  });
+
+  const okCount = results.filter(r=>r.status==='ok'||r.status==='partial').length;
+  const ngCount = results.filter(r=>r.status==='ng').length;
+  const pendingCount = results.filter(r=>r.status==='pending').length;
+  const consentNeeded = results.filter(r=>(r.status==='ok'||r.status==='partial') && r.consent);
+
+  return (
+    <div className="card">
+      <h2>📊 チェック結果サマリー（{isKaigo ? '介護保険' : '医療保険'}）</h2>
+      <div style={{display:'flex',gap:12,marginBottom:16}}>
+        <div style={{flex:1,background:'#dcfce7',padding:12,borderRadius:8,textAlign:'center'}}>
+          <div style={{fontSize:24,fontWeight:800,color:'#16a34a'}}>{okCount}</div>
+          <div style={{fontSize:11,color:'#16a34a'}}>算定可能</div>
+        </div>
+        <div style={{flex:1,background:'#fee2e2',padding:12,borderRadius:8,textAlign:'center'}}>
+          <div style={{fontSize:24,fontWeight:800,color:'#dc2626'}}>{ngCount}</div>
+          <div style={{fontSize:11,color:'#dc2626'}}>算定不可</div>
+        </div>
+        <div style={{flex:1,background:'#f3f4f6',padding:12,borderRadius:8,textAlign:'center'}}>
+          <div style={{fontSize:24,fontWeight:800,color:'#6b7280'}}>{pendingCount}</div>
+          <div style={{fontSize:11,color:'#6b7280'}}>未チェック</div>
+        </div>
+      </div>
+      {consentNeeded.length > 0 && (
+        <div className="result-box warn" style={{marginBottom:12}}>
+          ⚠️ 同意書が必要な算定可能加算: {consentNeeded.map(c=>c.name).join('、')}
+        </div>
+      )}
+      <table className="summary-table">
+        <thead><tr><th>加算名</th><th>ステータス</th><th>同意書</th></tr></thead>
+        <tbody>
+          {results.map(r => (
+            <tr key={r.id}>
+              <td style={{fontWeight:600}}>{r.name}</td>
+              <td className={r.status==='ok'||r.status==='partial'?'ok-cell':r.status==='ng'?'ng-cell':'na-cell'}>
+                {r.status==='ok'||r.status==='partial' ? '✅ 算定可' : r.status==='ng' ? '❌ 不可' : '⏳ 未チェック'}
+              </td>
+              <td>{r.consent ? (r.status==='ok'||r.status==='partial' ? '📝 要取得' : '-') : '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ===== メインApp =====
+function App() {
+  const [tab, setTab] = React.useState('kaigo');
+  const [kaigoFlow, setKaigoFlow] = React.useState({});
+  const [iryoFlow, setIryoFlow] = React.useState({});
+  const [kaigoOffice, setKaigoOffice] = React.useState({});
+  const [iryoOffice, setIryoOffice] = React.useState({});
+
+  // localStorage保存
+  React.useEffect(() => {
+    const saved = localStorage.getItem('cocon_kasan_data');
+    if(saved) {
+      const d = JSON.parse(saved);
+      if(d.kaigoFlow) setKaigoFlow(d.kaigoFlow);
+      if(d.iryoFlow) setIryoFlow(d.iryoFlow);
+      if(d.kaigoOffice) setKaigoOffice(d.kaigoOffice);
+      if(d.iryoOffice) setIryoOffice(d.iryoOffice);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    localStorage.setItem('cocon_kasan_data', JSON.stringify({kaigoFlow, iryoFlow, kaigoOffice, iryoOffice}));
+  }, [kaigoFlow, iryoFlow, kaigoOffice, iryoOffice]);
+
+  const setFlowAnswer = (setter) => (kasanId, stepIdx, val) => {
+    setter(prev => {
+      const next = {...prev};
+      if(!next[kasanId]) next[kasanId] = {};
+      next[kasanId] = {...next[kasanId], [stepIdx]: val};
+      // Clear downstream answers
+      const kasan = tab==='kaigo' ? KAIGO_KASAN : IRYO_KASAN;
+      const k = kasan.find(x=>x.id===kasanId);
+      if(k) {
+        for(let i=stepIdx+1; i<k.flow.length; i++) {
+          delete next[kasanId][i];
+        }
+      }
+      return next;
+    });
+  };
+
+  const setOfficeAnswer = (setter) => (id, val) => {
+    setter(prev => ({...prev, [id]: val}));
+  };
+
+  const resetAll = () => {
+    if(window.confirm('全てのチェックをリセットしますか？')) {
+      if(tab==='kaigo') { setKaigoFlow({}); setKaigoOffice({}); }
+      else { setIryoFlow({}); setIryoOffice({}); }
+    }
+  };
+
+  const flowAnswers = tab==='kaigo' ? kaigoFlow : iryoFlow;
+  const officeAnswers = tab==='kaigo' ? kaigoOffice : iryoOffice;
+  const kasanList = tab==='kaigo' ? KAIGO_KASAN : IRYO_KASAN;
+  const officeList = tab==='kaigo' ? KAIGO_OFFICE_KASAN : IRYO_OFFICE_KASAN;
+  const flowSetter = tab==='kaigo' ? setFlowAnswer(setKaigoFlow) : setFlowAnswer(setIryoFlow);
+  const officeSetter = tab==='kaigo' ? setOfficeAnswer(setKaigoOffice) : setOfficeAnswer(setIryoOffice);
+
+  return (
+    <div className="app">
+      <div className="header">
+        <h1>ここん 加算チェッカー</h1>
+        <p>訪問看護ステーション ここん | 加算算定フローチャート</p>
+      </div>
+
+      <div className="tab-bar">
+        <button className={`tab-btn ${tab==='kaigo'?'active':''}`} onClick={()=>setTab('kaigo')}>介護保険</button>
+        <button className={`tab-btn ${tab==='iryo'?'active':''}`} onClick={()=>setTab('iryo')}>医療保険</button>
+      </div>
+
+      <Summary kasanList={kasanList} officeList={officeList} flowAnswers={flowAnswers} officeAnswers={officeAnswers} isKaigo={tab==='kaigo'}/>
+
+      <OfficeChecker items={officeList} answers={officeAnswers} setAnswer={officeSetter}/>
+
+      <h3 style={{fontSize:16,fontWeight:800,color:'#1a1a2e',margin:'20px 0 12px',paddingLeft:4}}>
+        {tab==='kaigo' ? '介護保険' : '医療保険'} 利用者別加算チェック
+      </h3>
+
+      {kasanList.map(k => (
+        <FlowChecker key={k.id} kasan={k} answers={flowAnswers} setAnswer={flowSetter}/>
+      ))}
+
+      <div className="action-bar">
+        <button className="action-btn secondary" onClick={resetAll}>リセット</button>
+      </div>
+
+      <div style={{textAlign:'center',padding:'20px 0',fontSize:11,color:'#9ca3af'}}>
+        訪問看護ステーション ここん（合同会社るのわ）<br/>
+        2024年度介護報酬・診療報酬改定対応版
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
