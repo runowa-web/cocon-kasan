@@ -110,22 +110,25 @@ const TOKUBETSU_SHOCHI = {
   'Ⅱ（その他）': ['在宅酸素療法','在宅自己導尿','人工肛門・人工膀胱','真皮を越える褥瘡','週3日以上の点滴注射','在宅中心静脈栄養法','在宅持続陽圧呼吸療法 等']
 };
 
-// ===== 事業所固定設定のデフォルト =====
+// ===== 事業所固定設定（管理者のみ変更可）=====
+// ここんの現在の体制に合わせて設定。全社員に同じ設定が適用される。
+// 管理者パスワード: cocon2026（設定変更時に必要）
+const ADMIN_PASSWORD = 'cocon2026';
 const DEFAULT_OFFICE_SETTINGS = {
-  bcp: false,
-  gyakutai: false,
-  has_24h: false,
-  has_24h_futan: false,
-  has_senmon: false,
-  taisei_i: false,
-  taisei_ii: false,
-  service_i: false,
-  service_ii: false,
-  kinou1: false,
-  kinou2: false,
-  kinou3: false,
-  baseup: false,
-  dx: false,
+  bcp: true,        // BCP策定済み
+  gyakutai: true,   // 虐待防止措置 実施済み
+  has_24h: true,    // 24時間連絡対応体制あり
+  has_24h_futan: false, // 看護業務負担軽減の取組（未実施）
+  has_senmon: false,    // 専門/特定行為研修修了看護師（未配置）
+  taisei_i: false,      // 看護体制強化加算Ⅰ（新規開業のため未充足）
+  taisei_ii: false,     // 看護体制強化加算Ⅱ（新規開業のため未充足）
+  service_i: false,     // サービス提供体制強化加算Ⅰ（実績不足）
+  service_ii: false,    // サービス提供体制強化加算Ⅱ（実績不足）
+  kinou1: false,        // 機能強化型1（未充足）
+  kinou2: false,        // 機能強化型2（未充足）
+  kinou3: false,        // 機能強化型3（未充足）
+  baseup: false,        // ベースアップ評価料（未届出）
+  dx: false,            // 医療DX（未対応）
 };
 
 // ===== 加算データ（表示順に整理）=====
@@ -516,6 +519,9 @@ function FlowChecker({kasan, answers, setAnswer, officeSettings}) {
 function SettingsModal({show, onClose, settings, setSettings}) {
   if(!show) return null;
   const [local, setLocal] = useState({...settings});
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [pwInput, setPwInput] = useState('');
+  const [pwError, setPwError] = useState(false);
 
   const items = [
     {id:'bcp', label:'BCP（業務継続計画）策定済み', desc:'未策定の場合1%減算', required:true},
@@ -534,23 +540,60 @@ function SettingsModal({show, onClose, settings, setSettings}) {
     {id:'dx', label:'医療DX情報活用加算 体制あり（医療）', desc:'オンライン資格確認'},
   ];
 
-  const save = () => { setSettings(local); onClose(); };
+  const tryLogin = () => {
+    if(pwInput === ADMIN_PASSWORD) { setIsAdmin(true); setPwError(false); }
+    else { setPwError(true); }
+  };
+
+  const save = () => { setSettings(local); onClose(); setIsAdmin(false); setPwInput(''); };
+
+  const enabledCount = items.filter(i=>settings[i.id]).length;
+  const disabledCount = items.length - enabledCount;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e=>e.stopPropagation()}>
         <h2>事業所体制設定</h2>
-        <p style={{fontSize:12,color:'#6b7280',marginBottom:16}}>事業所として一括で満たしている体制要件を設定します。ここで設定した内容は固定され、利用者別チェックの前提条件になります。</p>
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <div style={{flex:1,background:'#dcfce7',padding:8,borderRadius:8,textAlign:'center'}}>
+            <div style={{fontSize:18,fontWeight:800,color:'#16a34a'}}>{enabledCount}</div>
+            <div style={{fontSize:10,color:'#16a34a'}}>届出済み</div>
+          </div>
+          <div style={{flex:1,background:'#f3f4f6',padding:8,borderRadius:8,textAlign:'center'}}>
+            <div style={{fontSize:18,fontWeight:800,color:'#6b7280'}}>{disabledCount}</div>
+            <div style={{fontSize:10,color:'#6b7280'}}>未届出</div>
+          </div>
+        </div>
+        <p style={{fontSize:12,color:'#6b7280',marginBottom:12}}>全社員に共通で適用される事業所体制です。{!isAdmin && '変更は管理者パスワードが必要です。'}</p>
+
         {items.map(item => (
-          <div key={item.id} className="setting-item">
-            <label>
-              <input type="checkbox" checked={!!local[item.id]} onChange={e=>setLocal(p=>({...p,[item.id]:e.target.checked}))}/>
+          <div key={item.id} className="setting-item" style={{opacity: !isAdmin ? 0.85 : 1}}>
+            <label style={{cursor: isAdmin ? 'pointer' : 'default'}}>
+              <input type="checkbox" checked={!!local[item.id]}
+                disabled={!isAdmin}
+                onChange={e=>setLocal(p=>({...p,[item.id]:e.target.checked}))}
+                style={{accentColor: isAdmin ? '#7c3aed' : '#9ca3af'}}/>
               <span>{item.label}{item.required && <span style={{color:'#dc2626',fontSize:11}}> ※必須</span>}</span>
             </label>
             {item.desc && <div className="setting-desc">{item.desc}</div>}
           </div>
         ))}
-        <button className="setting-save" onClick={save}>保存して閉じる</button>
+
+        {!isAdmin ? (
+          <div style={{marginTop:16,padding:14,background:'#faf5ff',borderRadius:10,border:'1px solid #e9d5ff'}}>
+            <div style={{fontSize:12,fontWeight:700,color:'#7c3aed',marginBottom:8}}>管理者モード（設定変更）</div>
+            <div style={{display:'flex',gap:8}}>
+              <input type="password" placeholder="管理者パスワード" value={pwInput}
+                onChange={e=>{setPwInput(e.target.value);setPwError(false);}}
+                onKeyDown={e=>e.key==='Enter'&&tryLogin()}
+                style={{flex:1,padding:10,border:'1px solid '+(pwError?'#dc2626':'#d1d5db'),borderRadius:8,fontSize:13}}/>
+              <button onClick={tryLogin} style={{padding:'10px 16px',background:'#7c3aed',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>解除</button>
+            </div>
+            {pwError && <div style={{fontSize:11,color:'#dc2626',marginTop:4}}>パスワードが正しくありません</div>}
+          </div>
+        ) : (
+          <button className="setting-save" onClick={save}>設定を保存して閉じる</button>
+        )}
       </div>
     </div>
   );
@@ -642,8 +685,11 @@ function App() {
       const d = JSON.parse(saved);
       if(d.kaigoFlow) setKaigoFlow(d.kaigoFlow);
       if(d.iryoFlow) setIryoFlow(d.iryoFlow);
-      if(d.officeSettings) setOfficeSettings({...DEFAULT_OFFICE_SETTINGS, ...d.officeSettings});
+      // 事業所設定は常にコード上のDEFAULTを使用（全社員統一）
+      // 管理者が変更した場合のみlocalStorageに保存・読込
     }
+    // 事業所設定は常にDEFAULT_OFFICE_SETTINGSで起動
+    setOfficeSettings({...DEFAULT_OFFICE_SETTINGS});
   }, []);
 
   useEffect(() => {
@@ -679,7 +725,7 @@ function App() {
         <h1>ここん 加算チェッカー</h1>
         <p>訪問看護ステーション ここん | 加算算定フローチャート</p>
         <div className="header-btns">
-          <button className="header-btn" onClick={()=>setShowSettings(true)}>⚙️ 事業所体制設定</button>
+          <button className="header-btn" onClick={()=>setShowSettings(true)}>⚙️ 事業所体制確認</button>
         </div>
       </div>
 
